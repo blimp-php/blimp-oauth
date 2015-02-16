@@ -7,6 +7,8 @@ use Blimp\Security\Authentication\BlimpProvider;
 use Blimp\Security\Authorization\BlimpVoter;
 use Blimp\Security\Authorization\Permission;
 use Blimp\Security\HttpEventSubscriber as HttpEventSubscriber;
+use Blimp\Security\Documents\Code;
+use Blimp\Security\Documents\AccessToken;
 use Pimple\Container;
 use Symfony\Component\Config\ConfigCache;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
@@ -25,6 +27,8 @@ use Symfony\Component\Security\Core\Util\SecureRandom;
 
 class SecurityServiceProvider implements ServiceProviderInterface {
     public function register(Container $api) {
+        $api['security.oauth.login_url'] = 'http://localhost:9000/login';
+
         $api['security.random'] = function() {
             return new SecureRandom();
         };
@@ -246,6 +250,160 @@ class SecurityServiceProvider implements ServiceProviderInterface {
         $api['security.http.listener'] = function ($api) {
             return new HttpEventSubscriber($api);
         };
+
+        $api['security.oauth.get_client'] = $api->protect(function($client_id) use ($api) {
+            $dm = $api['dataaccess.mongoodm.documentmanager']();
+
+            $client = $dm->find('Blimp\Security\Documents\Client', $client_id);
+
+            if ($client !== null) {
+                return $client;
+            }
+
+            return null;
+        });
+
+        $api['security.oauth.get_scopes'] = $api->protect(function($requested_scopes, $user_scopes) use ($api) {
+            $authorized_scopes = [];
+
+            foreach ($requested_scopes as $requested_scope) {
+                $authorized_domain = null;
+                $authorized_permissions = [];
+
+                $req_array = explode(':', $requested_scope);
+                $domain = array_key_exists(0, $req_array) ? $req_array[0] : '';
+                $permissions = array_key_exists(1, $req_array) ? $req_array[1] : '';
+
+                foreach ($user_scopes as $user_scope) {
+                    $u_array = explode(':', $user_scope);
+                    $u_domain = array_key_exists(0, $u_array) ? $u_array[0] : '';
+                    $u_permissions = array_key_exists(1, $u_array) ? $u_array[1] : '';
+
+                    if ($u_domain === $domain) {
+                        $authorized_domain = $domain;
+
+                        if (empty($u_permissions)) {
+                            if (empty($permissions)) {
+                                // permissions not specified (all domain)
+                                $authorized_permissions = null;
+                            } else {
+                                // all requested permissions
+                                $authorized_permissions = explode(',', $permissions);
+                            }
+
+                            break;
+                        }
+
+                        $u_permissions = explode(',', $u_permissions);
+
+                        if (empty($permissions)) {
+                            // all permited permissions
+                            $authorized_permissions = array_merge($authorized_permissions, $u_permissions);
+                        } else {
+                            // only requested and permited permissions
+                            $authorized_permissions = array_merge($authorized_permissions, array_intersect($u_permissions, explode(',', $permissions)));
+                        }
+                    }
+
+                    if ($authorized_permissions !== null && count($authorized_permissions) === 0) {
+                        // none of the requested permissions is permited, so domain is restricted
+                        $authorized_domain = null;
+                    }
+                }
+
+                if ($authorized_domain !== null) {
+                    $authorized_scope = $authorized_domain;
+
+                    if (!empty($authorized_permissions)) {
+                        $authorized_scope .= ':' . implode(',', $authorized_permissions);
+                    }
+
+                    $authorized_scopes[] = $authorized_scope;
+                }
+            }
+
+            return $authorized_scopes;
+        });
+
+        $api['security.oauth.get_resource_owner'] = $api->protect(function($username, $password) use ($api) {
+            $dm = $api['dataaccess.mongoodm.documentmanager']();
+
+            $credentials = $dm->getRepository('Blimp\Security\Documents\ResourceOwnerCredentials')->findOneBy(array('username' => $username));
+
+            if ($credentials !== null) {
+                if ($credentials->getPassword() !== null) {
+                    if (!password_verify($password, $credentials->getPassword())) {
+                        return null;
+                    }
+                }
+
+                $owner = $credentials->getOwner();
+                return $owner;
+            }
+
+            return null;
+        });
+
+        $api['security.oauth.authorization_code_lifetime'] = 120;
+
+        $api['security.oauth.authorization_code_create'] = $api->protect(function($profile, $client, $redirect_uri, $scope) use ($api) {
+            $payload = \bin2hex(\openssl_random_pseudo_bytes(8));
+            $code = str_replace(array('+', '/', '='), array('-', '_', ''), base64_encode($payload));
+
+            $t = new Code();
+
+            $t->setId($code);
+
+            $t->setProfileId($profile->getId());
+            $t->setProfile($profile);
+
+            $t->setClientId($client->getId());
+            $t->setClient($client);
+
+            $t->setRedirectUri($redirect_uri);
+
+            $t->setScope($scope);
+
+            $date = new \DateTime();
+            $date->add(new \DateInterval('PT' . $api['security.oauth.authorization_code_lifetime'] . 'S'));
+            $t->setExpires($date);
+
+            $t->setUsed(false);
+
+            return $t;
+        });
+
+        $api['security.oauth.access_token_lifetime'] = 3600;
+        $api['security.oauth.access_token_type'] = 'Bearer';
+
+        $api['security.oauth.access_token_create'] = $api->protect(function($profile, $client, $scope) use ($api) {
+            $payload = \bin2hex(\openssl_random_pseudo_bytes(32));
+            $access_token = str_replace(array('+', '/', '='), array('-', '_', ''), base64_encode($payload));
+
+            $t = new AccessToken();
+
+            $t->setId($access_token);
+            $t->setType($api['security.oauth.access_token_type']);
+
+            if (!empty($profile)) {
+                $t->setProfileId($profile->getId());
+                $t->setProfile($profile);
+            }
+
+            $t->setClientId($client->getId());
+            $t->setClient($client);
+
+            $t->setScope($scope);
+
+            $t->expiresIn = $api['security.oauth.access_token_lifetime'];
+
+            $date = new \DateTime();
+            $date->add(new \DateInterval('PT' . $t->expiresIn . 'S'));
+
+            $t->setExpires($date);
+
+            return $t;
+        });
 
         $api->extend('blimp.extend', function ($status, $api) {
             if($status) {

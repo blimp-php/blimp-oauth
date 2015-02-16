@@ -6,9 +6,11 @@ use Pimple\Container;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\JsonResponse;
+use Blimp\Security\Documents\ResourceOwnerActivity;
 
 class Authorize {
-    public function process(Container $api, Request $request, array $parameters) {
+    public function process(Container $api, Request $request) {
         // inputs
         $response_type = $request->query->get('response_type');
 
@@ -21,119 +23,143 @@ class Authorize {
 
         $denied = $request->query->get('denied');
 
+        $received_error = $request->query->get('error');
+        $received_error_description = $request->query->get('error_description');
+
         // outputs
+        $code = null;
+        $access_token = null;
+
         $real_redirect_uri = '';
-
-        $code = '';
-
-        $access_token = '';
-        $token_type = '';
         $real_scope = '';
 
-        $expires_in = 3600;
-
+        $error_code = Response::HTTP_OK;
         $error = '';
         $error_description = '';
-        $error_uri = '';
 
-        try {
-            switch ($request->getMethod()) {
-                case 'GET':
-                    if ($client_id == null) {
-                        $error = 'invalid_request';
-                        $error_description = 'Missing client_id parameter.';
-                        break;
-                    }
+        if ($client_id == null) {
+            $error_code = Response::HTTP_BAD_REQUEST;
+            $error = 'invalid_request';
+            $error_description = 'Missing client_id parameter.';
+        }
 
-                    if ($response_type == null) {
-                        $error = 'invalid_request';
-                        $error_description = 'Missing response_type parameter.';
-                        break;
-                    }
+        if ($response_type == null) {
+            $error_code = Response::HTTP_BAD_REQUEST;
+            $error = 'invalid_request';
+            $error_description = 'Missing response_type parameter.';
+        }
 
-                    if ($response_type != 'token' && $response_type != 'code') {
-                        $error = 'unsupported_response_type';
-                        $error_description = 'The authorization server does not support obtaining an authorization using this method.';
-                        break;
-                    }
+        if ($response_type != 'token' && $response_type != 'code') {
+            $error_code = Response::HTTP_BAD_REQUEST;
+            $error = 'unsupported_response_type';
+            $error_description = 'The authorization server does not support obtaining an authorization using this method.';
+        }
 
-                    if ($display != null && $display != 'page' && $display != 'popup' && $display != 'iframe') {
-                        $error = 'invalid_request';
-                        $error_description = 'Invalid display parameter.';
-                        break;
-                    }
+        if ($display != null && $display != 'page' && $display != 'popup' && $display != 'iframe') {
+            $error_code = Response::HTTP_BAD_REQUEST;
+            $error = 'invalid_request';
+            $error_description = 'Invalid display parameter.';
+        }
 
-                    $client_db = $api->getAuthController()->getClient($client_id);
-                    if ($client_db == null) {
-                        $error = 'unauthorized_client';
+        $client = $api['security.oauth.get_client']($client_id);
+        if ($client == null) {
+            $error_code = Response::HTTP_UNAUTHORIZED;
+            $error = 'invalid_client';
+            $error_description = 'Invalid client_id.';
+        }
 
-                        if ($response_type == 'token') {
-                            $error_description = 'The client is not authorized to request an access token.';
-                        } else if ($response_type == 'code') {
-                            $error_description = 'The client is not authorized to request an authorization code.';
-                        }
+        if ($denied != null) {
+            $error_code = Response::HTTP_UNAUTHORIZED;
+            $error = 'access_denied';
+            $error_description = 'The user denied your request.';
+        }
 
-                        break;
-                    }
+        $must_be_public = ($response_type == 'token');
 
-                    // TODO Public / Confidential + full/parcial + multiple
-                    if ($client_db['client_redirecturl'] == null && !$client_db['client_noredirect']) {
-                        $error = 'invalid_request';
-                        $error_description = 'Unauthorized redirect_uri.';
-                        break;
-                    } else if ($redirect_uri != null && strpos($redirect_uri, $client_db['client_redirecturl']) != 0) {
-                        $error = 'invalid_request';
-                        $error_description = 'Unauthorized redirect_uri.';
-                        break;
-                    } else if ($redirect_uri != null && strlen($redirect_uri) > 0) {
-                        $real_redirect_uri = $redirect_uri;
-                    } else {
-                        $real_redirect_uri = $client_db['client_redirecturl'];
-                    }
-
-                    if ($denied != null) {
-                        $error = 'access_denied';
-                        $error_description = 'The user denied your request.';
-                        break;
-                    }
-
-                    if ($token == null || $token->getUserID() == null) {
-                        $cancel = urlencode($real_redirect_uri);
-
-                        if ($response_type == 'token') {
-                            if (strpos($real_redirect_uri, '#') == -1) {
-                                $cancel .= '%23';
-                            } else {
-                                $cancel .= '%26';
-                            }
-                        } else {
-                            if (strpos($real_redirect_uri, '?') == -1) {
-                                $cancel .= '%3F';
-                            } else {
-                                $cancel .= '%26';
+        if(empty($error)) {
+            $uris = $client->getRedirectURI();
+            $found = false;
+            if (!empty($redirect_uri)) {
+                foreach ($uris as $uri) {
+                    $client_redirecturl = $uri->getUri();
+                    if (strpos($redirect_uri, $client_redirecturl) === 0) {
+                        $parcial = $uri->getParcial();
+                        if ($parcial || $redirect_uri === $client_redirecturl) {
+                            if (!$must_be_public || $uri->getPublic()) {
+                                $found = true;
+                                break;
                             }
                         }
+                    }
+                }
+            }
 
-                        $cancel .= 'error%3Daccess_denied%26error_description=' . urlencode('The user denied your request.');
+            if (!empty($redirect_uri) && !$found) {
+                $error_code = Response::HTTP_BAD_REQUEST;
+                $error = 'invalid_request';
+                $error_description = 'Unauthorized redirect_uri.';
+                break;
+            } else if ($must_be_public && !$found) {
+                $error_code = Response::HTTP_UNAUTHORIZED;
+                $error = 'invalid_client';
+                $error_description = 'Invalid client authentication.';
+                break;
+            } else if ($redirect_uri !== null) {
+                $real_redirect_uri = $redirect_uri;
+            } else if (count($uris) > 0) {
+                $uri = $uris[0];
+                $client_redirecturl = $uri->getUri();
+                $real_redirect_uri = $client_redirecturl;
+            }
 
-                        $next = urlencode($api['config']['base_url'] . '/oauth/authorize?response_type=');
-                        $next .= $response_type . '%26client_id%3D' . urlencode($client_id);
-                        if ($redirect_uri != null) {
-                            $next . '%26redirect_uri%3D' . urlencode($redirect_uri);
-                        }
-                        if ($scope != null) {
-                            $next . '%26scope%3D' . urlencode($scope);
-                        }
-                        if ($state != null) {
-                            $next . '%26state%3D' . urlencode($state);
-                        }
-                        if ($display != null) {
-                            $next . '%26display%3D' . urlencode($display);
-                        }
+            $cancel = urlencode($real_redirect_uri);
+            if ($response_type == 'token') {
+                if (strpos($real_redirect_uri, '#') == -1) {
+                    $cancel .= '%23';
+                } else {
+                    $cancel .= '%26';
+                }
+            } else {
+                if (strpos($real_redirect_uri, '?') == -1) {
+                    $cancel .= '%3F';
+                } else {
+                    $cancel .= '%26';
+                }
+            }
 
-                        $destination_uri = $this->api['config']['frontend_base_url'] . '/login.php?client_id=' . $client_id . '&display=' . ($display != null ? $display : 'page');
+            $cancel .= 'error%3Daccess_denied%26error_description=' . urlencode('The user denied your request.');
+
+            $baseurl = $request->getScheme() . '://' . $request->getHttpHost() . $request->getBasePath() . $request->getPathInfo();
+            $next = urlencode($baseurl . '?response_type=');
+            $next .= $response_type . '%26client_id%3D' . urlencode($client_id);
+            if ($redirect_uri != null) {
+                $next .= '%26redirect_uri%3D' . urlencode($redirect_uri);
+            }
+            if ($scope != null) {
+                $next .= '%26scope%3D' . urlencode($scope);
+            }
+            if ($state != null) {
+                $next .= '%26state%3D' . urlencode($state);
+                $cancel .= '%26state%3D' . urlencode($state);
+            }
+            if ($display != null) {
+                $next .= '%26display%3D' . urlencode($display);
+            }
+
+            try {
+                switch ($request->getMethod()) {
+                    case 'GET':
+                        $destination_uri = $api['security.oauth.login_url'] . '?client_id=' . $client_id . '&display=' . ($display != null ? $display : 'page');
                         $destination_uri .= '&cancel_url=' . urlencode($cancel);
-                        $destination_uri . '&next=' . urlencode($next);
+                        $destination_uri .= '&next=' . urlencode($next);
+
+                        if (!empty($received_error)) {
+                            $destination_uri .= '&error=' . $received_error;
+
+                            if (!empty($received_error_description)) {
+                                $destination_uri .= '&error_description=' . urlencode($received_error_description);
+                            }
+                        }
 
                         $response = new RedirectResponse($destination_uri);
                         $response->headers->set('Cache-Control', 'no-store');
@@ -141,51 +167,124 @@ class Authorize {
                         $response->setPrivate();
 
                         return $response;
-                    }
 
-                    if ($scope == null) {
-                        $error = 'invalid_scope';
-                        $error_description = 'The requested scope is invalid, unknown or malformed.';
                         break;
-                    }
 
-                    $real_scope = AuthorizeController::processScopes($this->getAPI(), $scope, $token->getUserID());
-
-                    if (strlen($real_scope) == 0) {
-                        $error = 'invalid_scope';
-                        $error_description = 'The requested scope is invalid, unknown or malformed.';
-                        break;
-                    }
-
-                    if ($response_type == 'token') {
-                        $client_secret = $client_db['client_secret'];
-                        $user_id = $token->getUserID();
-
-                        $token = new KToken($client_id, $client_secret, $real_user_id, $real_scope, time(null) + expires_in);
-                        $ktoken->setPrivateKey($this->api['config']['ktoken_encryption_private_key']);
-
-                        $access_token = $token->getAccessToken();
-                        $token_type = 'bearer';
-                    } else if ($response_type == 'code') {
-                        $data = $client_id . ':' . urlencode($real_redirect_uri) . ':';
-                        if (strlen($real_scope) > 0) {
-                            $data .= urlencode($real_scope);
+                    case 'POST':
+                        $data = $request->attributes->get('data');
+                        if (array_key_exists('username', $data)) {
+                            $username = $data['username'];
                         }
-                        $data .= ':' . $token->getUserID() . ':';
+                        if (array_key_exists('password', $data)) {
+                            $password = $data['password'];
+                        }
 
-                        // TODO Codificar info e por base64
+                        if (empty($username)) {
+                            $error_code = Response::HTTP_BAD_REQUEST;
+                            $error = 'invalid_request';
+                            $error_description = 'Missing username parameter.';
+                            break;
+                        }
 
-                        $code = $data;
-                    }
+                        if (empty($password)) {
+                            $error_code = Response::HTTP_BAD_REQUEST;
+                            $error = 'invalid_request';
+                            $error_description = 'Missing password parameter.';
+                            break;
+                        }
 
-                    break;
+                        $owner = $api['security.oauth.get_resource_owner']($username, $password);
 
-                default:
-                    throw new BlimpHttpException(Response::HTTP_METHOD_NOT_ALLOWED, "Method not allowed");
+                        if (empty($owner)) {
+                            $error_code = Response::HTTP_BAD_REQUEST;
+                            $error = 'invalid_grant';
+                            $error_description = 'Invalid resource owner credentials.';
+
+                            $destination_uri = $api['security.oauth.login_url'] . '?client_id=' . $client_id . '&display=' . ($display != null ? $display : 'page');
+                            $destination_uri .= '&cancel_url=' . urlencode($cancel);
+                            $destination_uri .= '&next=' . urlencode($next);
+                            $destination_uri .= '&error=' . $error;
+                            $destination_uri .= '&error_description=' . urlencode($error_description);
+
+                            $response = new RedirectResponse($destination_uri);
+                            $response->headers->set('Cache-Control', 'no-store');
+                            $response->headers->set('Pragma', 'no-cache');
+                            $response->setPrivate();
+
+                            return $response;
+                        }
+
+                        $profile = $owner->getProfile();
+
+                        if (!empty($scope)) {
+                            $to_process_scope = explode(' ', $scope);
+                        }
+
+                        $user_scopes = $owner->getScopes();
+
+                        $real_scope = implode(' ', $api['security.oauth.get_scopes']($to_process_scope, $user_scopes));
+
+                        if (empty($real_scope) xor empty($user_scopes)) {
+                            $error_code = Response::HTTP_BAD_REQUEST;
+                            $error = 'invalid_scope';
+                            $error_description = 'The requested scope is invalid, unknown or malformed.';
+
+                            break;
+                        }
+
+                        if ($response_type == 'code') {
+                            $code = $api['security.oauth.authorization_code_create']($profile, $client, $real_redirect_uri, $real_scope);
+                            $dm = $api['dataaccess.mongoodm.documentmanager']();
+
+                            $dm->persist($code);
+
+                            if(!empty($owner)) {
+                                $action = ' authorization code issued for client \'' . $client_id . '\'; ';
+                                $action .= '\'' . $real_scope . '\' scope allowed; ';
+
+                                $activity = new ResourceOwnerActivity();
+                                $activity->setAction($action);
+                                $dm->persist($activity);
+
+                                $owner->addActivity($activity);
+
+                                $dm->persist($owner);
+                            }
+
+                            $dm->flush();
+                        } else if ($response_type == 'token') {
+                            $access_token = $api['security.oauth.access_token_create']($profile, $client, $real_scope);
+
+                            $dm = $api['dataaccess.mongoodm.documentmanager']();
+
+                            $dm->persist($access_token);
+
+                            if (!empty($owner)) {
+                                $action = $access_token->getType() . ' access token issued for client \'' . $access_token->getClientId() . '\'; ';
+                                $action .= '\'' . $access_token->getScope() . '\' scope allowed; ';
+
+                                $activity = new ResourceOwnerActivity();
+                                $activity->setAction($action);
+                                $dm->persist($activity);
+
+                                $owner->addActivity($activity);
+
+                                $dm->persist($owner);
+                            }
+
+                            $dm->flush();
+                        }
+
+                        break;
+
+                    default:
+                        throw new BlimpHttpException(Response::HTTP_METHOD_NOT_ALLOWED, "Method not allowed");
+                }
+            } catch (Exception $e) {
+                $error_code = Response::HTTP_INTERNAL_SERVER_ERROR;
+                $error = 'server_error';
+                $error_description = 'Unknown error. ' . $e->getMessage();
             }
-        } catch (Exception $e) {
-            $error = 'server_error';
-            $error_description = 'Unknown error. ' . $e->getMessage();
         }
 
         if ($real_redirect_uri == null && strlen($real_redirect_uri) == 0 && $redirect_uri != null && strlen($redirect_uri) > 0) {
@@ -197,7 +296,7 @@ class Authorize {
 
             $destination_uri = $real_redirect_uri;
             if ($response_type != null && $response_type == 'token') {
-                if (strpos($real_redirect_uri, '#') == -1) {
+                if (strpos($real_redirect_uri, '#') === false) {
                     $next_separator = '#';
                 }
             } else {
@@ -206,34 +305,24 @@ class Authorize {
                 }
             }
 
-            if (strlen($error) > 0) {
+            if (!empty($error)) {
                 $destination_uri .= $next_separator . 'error=' . $error;
                 $next_separator = '&';
 
                 if (strlen($error_description) > 0) {
                     $destination_uri .= $next_separator . 'error_description=' . urlencode($error_description);
                 }
-
-                if (strlen($error_uri) > 0) {
-                    $destination_uri .= $next_separator . 'error_uri=' . urlencode($error_uri);
-                }
-            } else if (strlen($access_token) > 0) {
-                $destination_uri .= $next_separator . 'access_token=' . $access_token;
+            } else if (!empty($access_token)) {
+                $destination_uri .= $next_separator . 'access_token=' . $access_token->getId();
                 $next_separator = '&';
 
-                if (strlen($token_type) > 0) {
-                    $destination_uri .= $next_separator . 'token_type=' . $token_type;
-                }
+                $destination_uri .= $next_separator . 'token_type=' . $access_token->getType();
 
-                if ($expires_in > 0) {
-                    $destination_uri .= $next_separator . 'expires_in=' . $expires_in;
-                }
+                $destination_uri .= $next_separator . 'expires_in=' . $access_token->expiresIn;
 
-                if (strlen($real_scope) > 0) {
-                    $destination_uri .= $next_separator . 'scope=' . $scope;
-                }
-            } else if (strlen($code) > 0) {
-                $destination_uri .= $next_separator . 'code=' . $code;
+                $destination_uri .= $next_separator . 'scope=' . $access_token->getScope();
+            } else if (!empty($code)) {
+                $destination_uri .= $next_separator . 'code=' . $code->getId();
                 $next_separator = '&';
             }
 
@@ -249,10 +338,26 @@ class Authorize {
 
             return $response;
         } else {
-            $response = new Response('Missing, invalid, or mismatching redirection URI.', Response::HTTP_BAD_REQUEST);
+            $data = [];
+
+            if (!empty($error)) {
+                $data['error'] = $error;
+
+                if (strlen($error_description) > 0) {
+                    $data['error_description'] = $error_description;
+                }
+            } else {
+                $error_code = Response::HTTP_BAD_REQUEST;
+                $data['error'] = 'invalid_request';
+                $data['error_description'] = 'Missing, invalid, or mismatching redirection URI.';
+            }
+
+            $response = new JsonResponse();
+            $response->setStatusCode($error_code);
             $response->headers->set('Cache-Control', 'no-store');
             $response->headers->set('Pragma', 'no-cache');
             $response->setPrivate();
+            $response->setData($data);
 
             return $response;
         }

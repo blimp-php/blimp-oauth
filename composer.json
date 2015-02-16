@@ -12,12 +12,18 @@
         }
     ],
     "require": {
-        "blimp/blimp-http": "@dev",
-        "blimp/blimp-data-access-mongo": "@dev"
+        "php": ">=5.4.0",
+        "blimp/blimp-http": "1.0.*",
+        "blimp/blimp-data-access-mongo": "1.0.*"
     },
     "autoload": {
         "psr-4": {
             "Blimp\\Security\\": "src"
+        }
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-master": "1.0-dev"
         }
     },
     "minimum-stability": "dev",

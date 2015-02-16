@@ -5,15 +5,15 @@ use Blimp\DataAccess\Documents\BlimpDocument;
 use Doctrine\ODM\MongoDB\Mapping\Annotations as ODM;
 
 /** @ODM\Document */
-class AccessToken extends BlimpDocument {
+class Code extends BlimpDocument {
     /** @ODM\Id(strategy="NONE") */
     protected $id;
 
     /** @ODM\String */
-    private $type;
+    private $scope;
 
     /** @ODM\String */
-    private $scope;
+    private $redirectUri;
 
     /**
      * @ODM\Date
@@ -25,6 +25,9 @@ class AccessToken extends BlimpDocument {
 
     /** @ODM\String */
     private $profileId;
+
+    /** @ODM\Boolean */
+    public $used;
 
     /**
      * @ODM\ReferenceOne(targetDocument="\Blimp\Security\Documents\Client")
@@ -40,18 +43,18 @@ class AccessToken extends BlimpDocument {
         $this->id = $id;
     }
 
-    public function setType($type) {
-        $this->type = $type;
-    }
-    public function getType() {
-        return $this->type;
-    }
-
     public function setScope($scope) {
         $this->scope = $scope;
     }
     public function getScope() {
         return $this->scope;
+    }
+
+    public function setRedirectUri($redirectUri) {
+        $this->redirectUri = $redirectUri;
+    }
+    public function getRedirectUri() {
+        return $this->redirectUri;
     }
 
     public function setExpires($expires) {
@@ -75,6 +78,13 @@ class AccessToken extends BlimpDocument {
         return $this->profileId;
     }
 
+    public function setUsed($used) {
+        $this->used = $used;
+    }
+    public function getUsed() {
+        return $this->used;
+    }
+
     public function setClient(Client $client) {
         $this->client = $client;
     }
@@ -88,7 +98,4 @@ class AccessToken extends BlimpDocument {
     public function getProfile() {
         return $this->profile;
     }
-
-    // transient
-    public $expiresIn;
 }

@@ -8,18 +8,29 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-class VerifyCredentials {ß
+class VerifyCredentials {
     public function process(Container $api, Request $request) {
         $data = $request->attributes->get('data');
 
         // inputs
-        $input_token = $data['input_token'];
+        if (array_key_exists('input_token', $data)) {
+            $input_token = $data['input_token'];
+        }
 
-        $include_entities = $data['include_entities'];
+        if (array_key_exists('include_entities', $data)) {
+            $include_entities = $data['include_entities'];
+        }
 
-        $client_id = $data['client_id'];
-        $client_secret = $data['client_secret'];
-        $redirect_uri = $data['redirect_uri'];
+        if (array_key_exists('client_id', $data)) {
+            $client_id = $data['client_id'];
+        }
+        if (array_key_exists('client_secret', $data)) {
+            $client_secret = $data['client_secret'];
+        }
+
+        if (array_key_exists('redirect_uri', $data)) {
+            $redirect_uri = $data['redirect_uri'];
+        }
 
         $token = $api['security']->getToken();
 
@@ -57,14 +68,14 @@ class VerifyCredentials {ß
                     }
 
                     if ($token != null && $token instanceof BlimpToken && $token->isAuthenticated() && $token->getUser() == null) {
-                        if ($client_id !== null || $client_secret !== null) {
+                        if (!empty($client_id) || !empty($client_secret)) {
                             throw new BlimpHttpException(Response::HTTP_UNAUTHORIZED, 'invalid_client', 'The request utilizes more than one mechanism for authenticating the client.');
                         }
 
                         $real_client_id = $token->getAccessToken()->getClientID();
                         $real_client_secret = $token->getAccessToken()->getClient()->getSecret();
                     } else if ($authorization_header !== null) {
-                        if ($client_id !== null || $client_secret !== null) {
+                        if (!empty($client_id) || !empty($client_secret)) {
                             throw new BlimpHttpException(Response::HTTP_UNAUTHORIZED, 'invalid_client', 'The request utilizes more than one mechanism for authenticating the client.');
                         }
 
@@ -84,7 +95,7 @@ class VerifyCredentials {ß
                         }
 
                         $real_client_id = $client_id;
-                        $real_client_secret = $client_secret !== null ? $client_secret : '';
+                        $real_client_secret = !empty($client_secret) ? $client_secret : '';
                     }
 
                     if($access_token->getClientID() !== $real_client_id) {
@@ -106,7 +117,7 @@ class VerifyCredentials {ß
 
                     $uris = $client->getRedirectURI();
                     $found = false;
-                    if ($redirect_uri !== null) {
+                    if (!empty($redirect_uri)) {
                         foreach ($uris as $uri) {
                             $client_redirecturl = $uri->getUri();
                             if (strpos($redirect_uri, $client_redirecturl) === 0) {
@@ -121,7 +132,7 @@ class VerifyCredentials {ß
                         }
                     }
 
-                    if ($redirect_uri !== null && !$found) {
+                    if (!empty($redirect_uri) && !$found) {
                         throw new BlimpHttpException(Response::HTTP_UNAUTHORIZED, 'invalid_request', 'Unauthorized redirect_uri.');
                     } else if ($must_be_public && !$found) {
                         throw new BlimpHttpException(Response::HTTP_UNAUTHORIZED, 'invalid_client', 'Client authentication failed.');
@@ -130,12 +141,12 @@ class VerifyCredentials {ß
                     $data = [];
 
                     $scope = $access_token->getScope();
-                    if(!$scope) {
+                    if(!empty($scope)) {
                         $data['scope'] = $scope;
                     }
 
                     $expires = $access_token->getExpires();
-                    if(!$expires) {
+                    if(!empty($expires)) {
                         $data['expires_at'] = $expires;
                     }
 
@@ -144,11 +155,11 @@ class VerifyCredentials {ß
                     $data['client_id'] = $access_token->getClientId();
 
                     $profile_id = $access_token->getProfileId();
-                    if(!$profile_id) {
+                    if(!empty($profile_id)) {
                         $data['profile_id'] = $profile_id;
                     }
 
-                    if (boolval($include_entities) && $include_entities != 'false') {
+                    if (!empty($include_entities) && boolval($include_entities) && $include_entities != 'false') {
                         $data['client'] = $api['dataaccess.mongoodm.utils']->toStdClass($client);
                         unset($data['client']->secret);
                         unset($data['client']->redirectUri);
