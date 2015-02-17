@@ -1,35 +1,35 @@
 <?php
 namespace Blimp\Security;
 
-use Pimple\ServiceProviderInterface;
 use Blimp\Security\Authentication\BlimpAuthenticationListener;
 use Blimp\Security\Authentication\BlimpProvider;
 use Blimp\Security\Authorization\BlimpVoter;
 use Blimp\Security\Authorization\Permission;
-use Blimp\Security\HttpEventSubscriber as HttpEventSubscriber;
-use Blimp\Security\Documents\Code;
 use Blimp\Security\Documents\AccessToken;
+use Blimp\Security\Documents\Code;
+use Blimp\Security\HttpEventSubscriber as HttpEventSubscriber;
 use Pimple\Container;
+use Pimple\ServiceProviderInterface;
 use Symfony\Component\Config\ConfigCache;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\HttpFoundation\RequestMatcher;
 use Symfony\Component\Security\Core\Authentication\AuthenticationProviderManager;
 use Symfony\Component\Security\Core\Authentication\Provider\AnonymousAuthenticationProvider;
 use Symfony\Component\Security\Core\Authorization\AccessDecisionManager;
-use Symfony\Component\Security\Core\SecurityContext;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
+use Symfony\Component\Security\Core\SecurityContext;
+use Symfony\Component\Security\Core\Util\SecureRandom;
 use Symfony\Component\Security\Http\AccessMap;
 use Symfony\Component\Security\Http\Firewall;
 use Symfony\Component\Security\Http\FirewallMap;
 use Symfony\Component\Security\Http\Firewall\AccessListener;
 use Symfony\Component\Security\Http\Firewall\AnonymousAuthenticationListener;
-use Symfony\Component\Security\Core\Util\SecureRandom;
 
 class SecurityServiceProvider implements ServiceProviderInterface {
     public function register(Container $api) {
         $api['security.oauth.login_url'] = 'http://localhost:9000/login';
 
-        $api['security.random'] = function() {
+        $api['security.random'] = function () {
             return new SecureRandom();
         };
 
@@ -48,16 +48,16 @@ class SecurityServiceProvider implements ServiceProviderInterface {
         };
 
         $api['security.permitions.check'] = $api->protect(function ($domain, $permission) use ($api) {
-            if(empty($domain)) {
+            if (empty($domain)) {
                 return true;
             }
 
             $token = $api['security']->getToken();
 
-            if(get_class($token) == 'Blimp\\Security\\Authentication\\BlimpToken') {
+            if (get_class($token) == 'Blimp\\Security\\Authentication\\BlimpToken') {
                 $active = $token->getPermissions();
 
-                if(array_key_exists($domain, $active)) {
+                if (array_key_exists($domain, $active)) {
                     $permissions = $active[$domain]->getPermissions();
 
                     return in_array($permission, $permissions);
@@ -119,7 +119,7 @@ class SecurityServiceProvider implements ServiceProviderInterface {
 
         $api['security.voters'] = function ($api) {
             return array(
-                new BlimpVoter($api)
+                new BlimpVoter($api),
             );
         };
 
@@ -251,7 +251,7 @@ class SecurityServiceProvider implements ServiceProviderInterface {
             return new HttpEventSubscriber($api);
         };
 
-        $api['security.oauth.get_client'] = $api->protect(function($client_id) use ($api) {
+        $api['security.oauth.get_client'] = $api->protect(function ($client_id) use ($api) {
             $dm = $api['dataaccess.mongoodm.documentmanager']();
 
             $client = $dm->find('Blimp\Security\Documents\Client', $client_id);
@@ -263,7 +263,7 @@ class SecurityServiceProvider implements ServiceProviderInterface {
             return null;
         });
 
-        $api['security.oauth.get_scopes'] = $api->protect(function($requested_scopes, $user_scopes) use ($api) {
+        $api['security.oauth.get_scopes'] = $api->protect(function ($requested_scopes, $user_scopes) use ($api) {
             $authorized_scopes = [];
 
             foreach ($requested_scopes as $requested_scope) {
@@ -325,7 +325,7 @@ class SecurityServiceProvider implements ServiceProviderInterface {
             return $authorized_scopes;
         });
 
-        $api['security.oauth.get_resource_owner'] = $api->protect(function($username, $password) use ($api) {
+        $api['security.oauth.get_resource_owner'] = $api->protect(function ($username, $password) use ($api) {
             $dm = $api['dataaccess.mongoodm.documentmanager']();
 
             $credentials = $dm->getRepository('Blimp\Security\Documents\ResourceOwnerCredentials')->findOneBy(array('username' => $username));
@@ -346,7 +346,7 @@ class SecurityServiceProvider implements ServiceProviderInterface {
 
         $api['security.oauth.authorization_code_lifetime'] = 120;
 
-        $api['security.oauth.authorization_code_create'] = $api->protect(function($profile, $client, $redirect_uri, $scope) use ($api) {
+        $api['security.oauth.authorization_code_create'] = $api->protect(function ($profile, $client, $redirect_uri, $scope) use ($api) {
             $payload = \bin2hex(\openssl_random_pseudo_bytes(8));
             $code = str_replace(array('+', '/', '='), array('-', '_', ''), base64_encode($payload));
 
@@ -376,7 +376,7 @@ class SecurityServiceProvider implements ServiceProviderInterface {
         $api['security.oauth.access_token_lifetime'] = 3600;
         $api['security.oauth.access_token_type'] = 'Bearer';
 
-        $api['security.oauth.access_token_create'] = $api->protect(function($profile, $client, $scope) use ($api) {
+        $api['security.oauth.access_token_create'] = $api->protect(function ($profile, $client, $scope) use ($api) {
             $payload = \bin2hex(\openssl_random_pseudo_bytes(32));
             $access_token = str_replace(array('+', '/', '='), array('-', '_', ''), base64_encode($payload));
 
@@ -406,8 +406,8 @@ class SecurityServiceProvider implements ServiceProviderInterface {
         });
 
         $api->extend('blimp.extend', function ($status, $api) {
-            if($status) {
-                if($api->offsetExists('security.permissions')) {
+            if ($status) {
+                if ($api->offsetExists('security.permissions')) {
                     $api->extend('security.permissions', function ($permissions, $api) {
                         $permissions['auth'] = $api['security.permission.factory']('auth', ['create', 'list', 'get', 'edit', 'delete']);
 
@@ -430,72 +430,72 @@ class SecurityServiceProvider implements ServiceProviderInterface {
                         $rootNode = $tb->root('security');
 
                         $rootNode
-                            ->fixXmlConfig('firewall')
+                        ->fixXmlConfig('firewall')
                         ->children()
-                            ->arrayNode('firewalls')
+                        ->arrayNode('firewalls')
                         ->isRequired()
-                            ->requiresAtLeastOneElement()
+                        ->requiresAtLeastOneElement()
                         ->disallowNewKeysInSubsequentConfigs()
-                            ->useAttributeAsKey('name')
+                        ->useAttributeAsKey('name')
                         ->prototype('array')
-                            ->children()
+                        ->children()
                         ->scalarNode('pattern')->end()
                         ->booleanNode('security')->defaultTrue()->end()
-                            ->booleanNode('anonymous')->defaultTrue()->end()
+                        ->booleanNode('anonymous')->defaultTrue()->end()
                         ->end()
-                            ->end();
-
-                        $rootNode
-                            ->fixXmlConfig('rule', 'access_control')
-                        ->children()
-                            ->arrayNode('access_control')
-                        ->cannotBeOverwritten()
-                            ->prototype('array')
-                        ->fixXmlConfig('ip')
-                            ->children()
-                        ->scalarNode('requires_channel')->defaultNull()->end()
-                            ->scalarNode('path')
-                        ->defaultNull()
-                            ->info('use the urldecoded format')
-                        ->example('^/path to resource/')
-                            ->end()
-                        ->scalarNode('host')->defaultNull()->end()
-                            ->arrayNode('ips')
-                        ->beforeNormalization()->ifString()->then(function ($v) {return array($v);})->end()
-                        ->prototype('scalar')->end()
-                        ->end()
-                            ->arrayNode('methods')
-                        ->beforeNormalization()->ifString()->then(function ($v) {return preg_split('/\s*,\s*/', $v);})->end()
-                        ->prototype('scalar')->end()
-                        ->end()
-                            ->scalarNode('allow_if')->defaultNull()->end()
-                        ->end()
-                            ->fixXmlConfig('role')
-                        ->children()
-                            ->arrayNode('roles')
-                        ->beforeNormalization()->ifString()->then(function ($v) {return preg_split('/\s* \s*/', $v);})->end()
-                        ->prototype('scalar')->end()
-                        ->end()
-                            ->end()
-                        ->end()
-                            ->end()
                         ->end();
 
                         $rootNode
-                            ->fixXmlConfig('role', 'role_hierarchy')
+                        ->fixXmlConfig('rule', 'access_control')
                         ->children()
-                            ->arrayNode('role_hierarchy')
-                        ->useAttributeAsKey('id')
-                            ->prototype('array')
-                        ->performNoDeepMerging()
-                            ->beforeNormalization()->ifString()->then(function ($v) {return array('value' => $v);})->end()
-                        ->beforeNormalization()
-                            ->ifTrue(function ($v) {return is_array($v) && isset($v['value']);})
-                            ->then(function ($v) {return preg_split('/\s*,\s*/', $v['value']);})
-                            ->end()
+                        ->arrayNode('access_control')
+                        ->cannotBeOverwritten()
+                        ->prototype('array')
+                        ->fixXmlConfig('ip')
+                        ->children()
+                        ->scalarNode('requires_channel')->defaultNull()->end()
+                        ->scalarNode('path')
+                        ->defaultNull()
+                        ->info('use the urldecoded format')
+                        ->example('^/path to resource/')
+                        ->end()
+                        ->scalarNode('host')->defaultNull()->end()
+                        ->arrayNode('ips')
+                        ->beforeNormalization()->ifString()->then(function ($v) {return array($v);})->end()
                         ->prototype('scalar')->end()
                         ->end()
-                            ->end()
+                        ->arrayNode('methods')
+                        ->beforeNormalization()->ifString()->then(function ($v) {return preg_split('/\s*,\s*/', $v);})->end()
+                        ->prototype('scalar')->end()
+                        ->end()
+                        ->scalarNode('allow_if')->defaultNull()->end()
+                        ->end()
+                        ->fixXmlConfig('role')
+                        ->children()
+                        ->arrayNode('roles')
+                        ->beforeNormalization()->ifString()->then(function ($v) {return preg_split('/\s* \s*/', $v);})->end()
+                        ->prototype('scalar')->end()
+                        ->end()
+                        ->end()
+                        ->end()
+                        ->end()
+                        ->end();
+
+                        $rootNode
+                        ->fixXmlConfig('role', 'role_hierarchy')
+                        ->children()
+                        ->arrayNode('role_hierarchy')
+                        ->useAttributeAsKey('id')
+                        ->prototype('array')
+                        ->performNoDeepMerging()
+                        ->beforeNormalization()->ifString()->then(function ($v) {return array('value' => $v);})->end()
+                        ->beforeNormalization()
+                        ->ifTrue(function ($v) {return is_array($v) && isset($v['value']);})
+                        ->then(function ($v) {return preg_split('/\s*,\s*/', $v['value']);})
+                        ->end()
+                        ->prototype('scalar')->end()
+                        ->end()
+                        ->end()
                         ->end()
                         ;
 

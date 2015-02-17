@@ -98,12 +98,10 @@ class Authorize {
                 $error_code = Response::HTTP_BAD_REQUEST;
                 $error = 'invalid_request';
                 $error_description = 'Unauthorized redirect_uri.';
-                break;
             } else if ($must_be_public && !$found) {
                 $error_code = Response::HTTP_UNAUTHORIZED;
                 $error = 'invalid_client';
                 $error_description = 'Invalid client authentication.';
-                break;
             } else if ($redirect_uri !== null) {
                 $real_redirect_uri = $redirect_uri;
             } else if (count($uris) > 0) {
@@ -112,99 +110,55 @@ class Authorize {
                 $real_redirect_uri = $client_redirecturl;
             }
 
-            $cancel = urlencode($real_redirect_uri);
-            if ($response_type == 'token') {
-                if (strpos($real_redirect_uri, '#') == -1) {
-                    $cancel .= '%23';
+            if(empty($error)) {
+                $cancel = urlencode($real_redirect_uri);
+                if ($response_type == 'token') {
+                    if (strpos($real_redirect_uri, '#') == -1) {
+                        $cancel .= '%23';
+                    } else {
+                        $cancel .= '%26';
+                    }
                 } else {
-                    $cancel .= '%26';
+                    if (strpos($real_redirect_uri, '?') == -1) {
+                        $cancel .= '%3F';
+                    } else {
+                        $cancel .= '%26';
+                    }
                 }
-            } else {
-                if (strpos($real_redirect_uri, '?') == -1) {
-                    $cancel .= '%3F';
-                } else {
-                    $cancel .= '%26';
+
+                $cancel .= 'error%3Daccess_denied%26error_description=' . urlencode('The user denied your request.');
+
+                $baseurl = $request->getScheme() . '://' . $request->getHttpHost() . $request->getBasePath() . $request->getPathInfo();
+                $next = urlencode($baseurl . '?response_type=');
+                $next .= $response_type . '%26client_id%3D' . urlencode($client_id);
+                if ($redirect_uri != null) {
+                    $next .= '%26redirect_uri%3D' . urlencode($redirect_uri);
                 }
-            }
+                if ($scope != null) {
+                    $next .= '%26scope%3D' . urlencode($scope);
+                }
+                if ($state != null) {
+                    $next .= '%26state%3D' . urlencode($state);
+                    $cancel .= '%26state%3D' . urlencode($state);
+                }
+                if ($display != null) {
+                    $next .= '%26display%3D' . urlencode($display);
+                }
 
-            $cancel .= 'error%3Daccess_denied%26error_description=' . urlencode('The user denied your request.');
-
-            $baseurl = $request->getScheme() . '://' . $request->getHttpHost() . $request->getBasePath() . $request->getPathInfo();
-            $next = urlencode($baseurl . '?response_type=');
-            $next .= $response_type . '%26client_id%3D' . urlencode($client_id);
-            if ($redirect_uri != null) {
-                $next .= '%26redirect_uri%3D' . urlencode($redirect_uri);
-            }
-            if ($scope != null) {
-                $next .= '%26scope%3D' . urlencode($scope);
-            }
-            if ($state != null) {
-                $next .= '%26state%3D' . urlencode($state);
-                $cancel .= '%26state%3D' . urlencode($state);
-            }
-            if ($display != null) {
-                $next .= '%26display%3D' . urlencode($display);
-            }
-
-            try {
-                switch ($request->getMethod()) {
-                    case 'GET':
-                        $destination_uri = $api['security.oauth.login_url'] . '?client_id=' . $client_id . '&display=' . ($display != null ? $display : 'page');
-                        $destination_uri .= '&cancel_url=' . urlencode($cancel);
-                        $destination_uri .= '&next=' . urlencode($next);
-
-                        if (!empty($received_error)) {
-                            $destination_uri .= '&error=' . $received_error;
-
-                            if (!empty($received_error_description)) {
-                                $destination_uri .= '&error_description=' . urlencode($received_error_description);
-                            }
-                        }
-
-                        $response = new RedirectResponse($destination_uri);
-                        $response->headers->set('Cache-Control', 'no-store');
-                        $response->headers->set('Pragma', 'no-cache');
-                        $response->setPrivate();
-
-                        return $response;
-
-                        break;
-
-                    case 'POST':
-                        $data = $request->attributes->get('data');
-                        if (array_key_exists('username', $data)) {
-                            $username = $data['username'];
-                        }
-                        if (array_key_exists('password', $data)) {
-                            $password = $data['password'];
-                        }
-
-                        if (empty($username)) {
-                            $error_code = Response::HTTP_BAD_REQUEST;
-                            $error = 'invalid_request';
-                            $error_description = 'Missing username parameter.';
-                            break;
-                        }
-
-                        if (empty($password)) {
-                            $error_code = Response::HTTP_BAD_REQUEST;
-                            $error = 'invalid_request';
-                            $error_description = 'Missing password parameter.';
-                            break;
-                        }
-
-                        $owner = $api['security.oauth.get_resource_owner']($username, $password);
-
-                        if (empty($owner)) {
-                            $error_code = Response::HTTP_BAD_REQUEST;
-                            $error = 'invalid_grant';
-                            $error_description = 'Invalid resource owner credentials.';
-
+                try {
+                    switch ($request->getMethod()) {
+                        case 'GET':
                             $destination_uri = $api['security.oauth.login_url'] . '?client_id=' . $client_id . '&display=' . ($display != null ? $display : 'page');
                             $destination_uri .= '&cancel_url=' . urlencode($cancel);
                             $destination_uri .= '&next=' . urlencode($next);
-                            $destination_uri .= '&error=' . $error;
-                            $destination_uri .= '&error_description=' . urlencode($error_description);
+
+                            if (!empty($received_error)) {
+                                $destination_uri .= '&error=' . $received_error;
+
+                                if (!empty($received_error_description)) {
+                                    $destination_uri .= '&error_description=' . urlencode($received_error_description);
+                                }
+                            }
 
                             $response = new RedirectResponse($destination_uri);
                             $response->headers->set('Cache-Control', 'no-store');
@@ -212,78 +166,124 @@ class Authorize {
                             $response->setPrivate();
 
                             return $response;
-                        }
-
-                        $profile = $owner->getProfile();
-
-                        if (!empty($scope)) {
-                            $to_process_scope = explode(' ', $scope);
-                        }
-
-                        $user_scopes = $owner->getScopes();
-
-                        $real_scope = implode(' ', $api['security.oauth.get_scopes']($to_process_scope, $user_scopes));
-
-                        if (empty($real_scope) xor empty($user_scopes)) {
-                            $error_code = Response::HTTP_BAD_REQUEST;
-                            $error = 'invalid_scope';
-                            $error_description = 'The requested scope is invalid, unknown or malformed.';
 
                             break;
-                        }
 
-                        if ($response_type == 'code') {
-                            $code = $api['security.oauth.authorization_code_create']($profile, $client, $real_redirect_uri, $real_scope);
-                            $dm = $api['dataaccess.mongoodm.documentmanager']();
-
-                            $dm->persist($code);
-
-                            if(!empty($owner)) {
-                                $action = ' authorization code issued for client \'' . $client_id . '\'; ';
-                                $action .= '\'' . $real_scope . '\' scope allowed; ';
-
-                                $activity = new ResourceOwnerActivity();
-                                $activity->setAction($action);
-                                $dm->persist($activity);
-
-                                $owner->addActivity($activity);
-
-                                $dm->persist($owner);
+                        case 'POST':
+                            $data = $request->attributes->get('data');
+                            if (array_key_exists('username', $data)) {
+                                $username = $data['username'];
+                            }
+                            if (array_key_exists('password', $data)) {
+                                $password = $data['password'];
                             }
 
-                            $dm->flush();
-                        } else if ($response_type == 'token') {
-                            $access_token = $api['security.oauth.access_token_create']($profile, $client, $real_scope);
-
-                            $dm = $api['dataaccess.mongoodm.documentmanager']();
-
-                            $dm->persist($access_token);
-
-                            if (!empty($owner)) {
-                                $action = $access_token->getType() . ' access token issued for client \'' . $access_token->getClientId() . '\'; ';
-                                $action .= '\'' . $access_token->getScope() . '\' scope allowed; ';
-
-                                $activity = new ResourceOwnerActivity();
-                                $activity->setAction($action);
-                                $dm->persist($activity);
-
-                                $owner->addActivity($activity);
-
-                                $dm->persist($owner);
+                            if (empty($username)) {
+                                $error_code = Response::HTTP_BAD_REQUEST;
+                                $error = 'invalid_request';
+                                $error_description = 'Missing username parameter.';
+                                break;
                             }
 
-                            $dm->flush();
-                        }
+                            if (empty($password)) {
+                                $error_code = Response::HTTP_BAD_REQUEST;
+                                $error = 'invalid_request';
+                                $error_description = 'Missing password parameter.';
+                                break;
+                            }
 
-                        break;
+                            $owner = $api['security.oauth.get_resource_owner']($username, $password);
 
-                    default:
-                        throw new BlimpHttpException(Response::HTTP_METHOD_NOT_ALLOWED, "Method not allowed");
+                            if (empty($owner)) {
+                                $error_code = Response::HTTP_BAD_REQUEST;
+                                $error = 'invalid_grant';
+                                $error_description = 'Invalid resource owner credentials.';
+
+                                $destination_uri = $api['security.oauth.login_url'] . '?client_id=' . $client_id . '&display=' . ($display != null ? $display : 'page');
+                                $destination_uri .= '&cancel_url=' . urlencode($cancel);
+                                $destination_uri .= '&next=' . urlencode($next);
+                                $destination_uri .= '&error=' . $error;
+                                $destination_uri .= '&error_description=' . urlencode($error_description);
+
+                                $response = new RedirectResponse($destination_uri);
+                                $response->headers->set('Cache-Control', 'no-store');
+                                $response->headers->set('Pragma', 'no-cache');
+                                $response->setPrivate();
+
+                                return $response;
+                            }
+
+                            $profile = $owner->getProfile();
+
+                            if (!empty($scope)) {
+                                $to_process_scope = explode(' ', $scope);
+                            }
+
+                            $user_scopes = $owner->getScopes();
+
+                            $real_scope = implode(' ', $api['security.oauth.get_scopes']($to_process_scope, $user_scopes));
+
+                            if (empty($real_scope) xor empty($user_scopes)) {
+                                $error_code = Response::HTTP_BAD_REQUEST;
+                                $error = 'invalid_scope';
+                                $error_description = 'The requested scope is invalid, unknown or malformed.';
+
+                                break;
+                            }
+
+                            if ($response_type == 'code') {
+                                $code = $api['security.oauth.authorization_code_create']($profile, $client, $real_redirect_uri, $real_scope);
+                                $dm = $api['dataaccess.mongoodm.documentmanager']();
+
+                                $dm->persist($code);
+
+                                if(!empty($owner)) {
+                                    $action = ' authorization code issued for client \'' . $client_id . '\'; ';
+                                    $action .= '\'' . $real_scope . '\' scope allowed; ';
+
+                                    $activity = new ResourceOwnerActivity();
+                                    $activity->setAction($action);
+                                    $dm->persist($activity);
+
+                                    $owner->addActivity($activity);
+
+                                    $dm->persist($owner);
+                                }
+
+                                $dm->flush();
+                            } else if ($response_type == 'token') {
+                                $access_token = $api['security.oauth.access_token_create']($profile, $client, $real_scope);
+
+                                $dm = $api['dataaccess.mongoodm.documentmanager']();
+
+                                $dm->persist($access_token);
+
+                                if (!empty($owner)) {
+                                    $action = $access_token->getType() . ' access token issued for client \'' . $access_token->getClientId() . '\'; ';
+                                    $action .= '\'' . $access_token->getScope() . '\' scope allowed; ';
+
+                                    $activity = new ResourceOwnerActivity();
+                                    $activity->setAction($action);
+                                    $dm->persist($activity);
+
+                                    $owner->addActivity($activity);
+
+                                    $dm->persist($owner);
+                                }
+
+                                $dm->flush();
+                            }
+
+                            break;
+
+                        default:
+                            throw new BlimpHttpException(Response::HTTP_METHOD_NOT_ALLOWED, "Method not allowed");
+                    }
+                } catch (Exception $e) {
+                    $error_code = Response::HTTP_INTERNAL_SERVER_ERROR;
+                    $error = 'server_error';
+                    $error_description = 'Unknown error. ' . $e->getMessage();
                 }
-            } catch (Exception $e) {
-                $error_code = Response::HTTP_INTERNAL_SERVER_ERROR;
-                $error = 'server_error';
-                $error_description = 'Unknown error. ' . $e->getMessage();
             }
         }
 
