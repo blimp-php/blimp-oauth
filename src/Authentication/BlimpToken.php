@@ -57,7 +57,9 @@ class BlimpToken implements TokenInterface {
                 return true;
             }
 
-            list($user_domain, $user_permissions) = explode(':', $role_name);
+            $user_array = explode(':', $role_name);
+            $user_domain = array_key_exists(0, $user_array) ? $user_array[0] : '';
+            $user_permissions = array_key_exists(1, $user_array) ? $user_array[1] : '';
 
             if (array_key_exists($user_domain, $all)) {
                 $scope = $all[$user_domain];
