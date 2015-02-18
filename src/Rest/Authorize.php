@@ -34,8 +34,8 @@ class Authorize {
         $real_scope = '';
 
         $error_code = Response::HTTP_OK;
-        $error = '';
-        $error_description = '';
+        $error = null;
+        $error_description = null;
 
         if ($client_id == null) {
             $error_code = Response::HTTP_BAD_REQUEST;
