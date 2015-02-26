@@ -410,6 +410,7 @@ class SecurityServiceProvider implements ServiceProviderInterface {
                 if ($api->offsetExists('security.permissions')) {
                     $api->extend('security.permissions', function ($permissions, $api) {
                         $permissions['auth'] = $api['security.permission.factory']('auth', ['create', 'list', 'get', 'edit', 'delete']);
+                        $permissions['users'] = $api['security.permission.factory']('users', ['create', 'list', 'get', 'edit', 'delete', 'self_get', 'self_edit', 'self_delete']);
 
                         return $permissions;
                     });
