@@ -215,6 +215,7 @@ class Authorize {
 
                             $profile = $owner->getProfile();
 
+                            $to_process_scope = null;
                             if (!empty($scope)) {
                                 $to_process_scope = explode(' ', $scope);
                             }

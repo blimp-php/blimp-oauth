@@ -16,6 +16,7 @@ class BlimpToken implements TokenInterface {
     private $all_permissions = array();
 
     private $access_token;
+    private $user;
 
     /**
      * Constructor.
@@ -128,17 +129,23 @@ class BlimpToken implements TokenInterface {
      * {@inheritdoc}
      */
     public function getUsername() {
-        return $this->access_token != null ? $this->access_token->getProfile()->getId() : '';
+        $user = $this->getUser();
+        return $user != null ? $user->getId() : '';
     }
 
     /**
      * {@inheritdoc}
      */
     public function getUser() {
-        return $this->access_token->getProfile();
+        if(!empty($this->user)) {
+            return $this->user;
+        }
+
+        return $this->access_token != null ? $this->access_token->getProfile() : null;
     }
 
     public function setUser($user) {
+        $this->user = $user;
     }
 
     public function setAccessToken($access_token) {
