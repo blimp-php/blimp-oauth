@@ -48,7 +48,7 @@ class SecurityServiceProvider implements ServiceProviderInterface {
         };
 
         $api['security.permitions.check'] = $api->protect(function ($domain, $permission) use ($api) {
-            if (empty($domain) || true) {
+            if (empty($domain)) {
                 return true;
             }
 
@@ -393,6 +393,9 @@ class SecurityServiceProvider implements ServiceProviderInterface {
                 $t->setProfileId($profile->getId());
                 $t->setProfile($profile);
             }
+
+            $t->setCreatedBy('system');
+            $t->setUpdatedBy('system');
 
             $t->setClientId($client->getId());
             $t->setClient($client);

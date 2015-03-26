@@ -6,7 +6,7 @@ use Doctrine\ODM\MongoDB\Mapping\Annotations as ODM;
 
 /** @ODM\Document */
 class AccessToken extends BlimpDocument {
-    /** @ODM\Id(strategy="NONE") */
+    /** @ODM\Id(strategy="CUSTOM", options={"class"="\Blimp\DataAccess\BlimpIdProvider"}) */
     protected $id;
 
     /** @ODM\String */
@@ -35,10 +35,6 @@ class AccessToken extends BlimpDocument {
      * @ODM\ReferenceOne
      */
     private $profile;
-
-    public function setId($id) {
-        $this->id = $id;
-    }
 
     public function setType($type) {
         $this->type = $type;

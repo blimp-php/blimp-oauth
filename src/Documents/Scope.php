@@ -7,7 +7,7 @@ use Symfony\Component\Security\Core\Role\RoleInterface;
 
 /** @ODM\Document */
 class Scope extends BlimpDocument implements RoleInterface {
-    /** @ODM\Id(strategy="NONE") */
+    /** @ODM\Id(strategy="CUSTOM", options={"class"="\Blimp\DataAccess\BlimpIdProvider"}) */
     protected $id;
 
     /** @ODM\Collection */
@@ -15,10 +15,6 @@ class Scope extends BlimpDocument implements RoleInterface {
 
     public function __construct() {
         $this->scopes = [];
-    }
-
-    public function setId($id) {
-        $this->id = $id;
     }
 
     public function setScopes($scopes) {

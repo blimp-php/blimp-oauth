@@ -9,16 +9,16 @@ class ResourceOwnerCredentials extends BlimpDocument {
     /**
      * @ODM\ReferenceOne(targetDocument="\Blimp\Security\Documents\ResourceOwner")
      */
-    private $owner;
+    protected $owner;
 
     /** @ODM\String @ODM\Index(unique=true) */
-    private $username;
+    protected $username;
 
     /** @ODM\String */
-    private $password;
+    protected $password;
 
     /** @ODM\String */
-    private $otpSecret;
+    protected $otpSecret;
 
     public function setOwner($owner) {
         $this->owner = $owner;
