@@ -11,7 +11,7 @@ use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 use Symfony\Component\HttpFoundation\Response;
 
 class HttpEventSubscriber implements EventSubscriberInterface {
-    private $api;
+    protected $api;
 
     public function __construct($api) {
         $this->api = $api;

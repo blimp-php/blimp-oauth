@@ -12,7 +12,7 @@ class ResourceOwner extends BlimpDocument {
     /**
      * @ODM\ReferenceOne
      */
-    private $profile;
+    protected $profile;
 
     /** @ODM\ReferenceMany(targetDocument="\Blimp\Security\Documents\ResourceOwnerActivity", mappedBy="owner", cascade={"persist"}, orphanRemoval=true) */
     protected $activity;

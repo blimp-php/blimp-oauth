@@ -8,15 +8,15 @@ use Symfony\Component\Security\Core\Role\Role;
 class BlimpToken implements TokenInterface {
     protected $bearerToken;
 
-    private $roles = array();
-    private $authenticated = false;
-    private $attributes = array();
+    protected $roles = array();
+    protected $authenticated = false;
+    protected $attributes = array();
 
-    private $all_scopes = array();
-    private $all_permissions = array();
+    protected $all_scopes = array();
+    protected $all_permissions = array();
 
-    private $access_token;
-    private $user;
+    protected $access_token;
+    protected $user;
 
     /**
      * Constructor.

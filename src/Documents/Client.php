@@ -9,7 +9,7 @@ use Doctrine\ODM\MongoDB\Mapping\Annotations as ODM;
 /** @ODM\Document */
 class Client extends BlimpDocument {
     /** @ODM\String */
-    private $secret;
+    protected $secret;
 
     /** @ODM\EmbedMany(targetDocument="\Blimp\Security\Documents\ClientRedirectURI") */
     protected $redirectUri;

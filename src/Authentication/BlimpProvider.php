@@ -12,8 +12,8 @@ use Symfony\Component\Security\Core\Exception\CredentialsExpiredException;
 class BlimpProvider implements AuthenticationProviderInterface {
     protected $api;
 
-    private $active_scopes;
-    private $active_permissions;
+    protected $active_scopes;
+    protected $active_permissions;
 
     public function __construct(Container $api) {
         $this->api = $api;

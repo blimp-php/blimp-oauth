@@ -6,13 +6,13 @@ use Doctrine\ODM\MongoDB\Mapping\Annotations as ODM;
 /** @ODM\EmbeddedDocument */
 class ClientRedirectURI {
     /** @ODM\String */
-    private $uri;
+    protected $uri;
 
     /** @ODM\Boolean */
-    private $parcial;
+    protected $parcial;
 
     /** @ODM\Boolean */
-    private $public;
+    protected $public;
 
     public function getUri() {
         return $this->uri;

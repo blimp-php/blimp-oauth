@@ -6,7 +6,7 @@ use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authorization\Voter\VoterInterface;
 
 class BlimpVoter implements VoterInterface {
-    private $api;
+    protected $api;
 
     public function __construct($api) {
         $this->api = $api;

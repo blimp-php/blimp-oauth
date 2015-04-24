@@ -10,10 +10,10 @@ class AccessToken extends BlimpDocument {
     protected $id;
 
     /** @ODM\String */
-    private $type;
+    protected $type;
 
     /** @ODM\String */
-    private $scope;
+    protected $scope;
 
     /**
      * @ODM\Date
@@ -21,20 +21,20 @@ class AccessToken extends BlimpDocument {
     protected $expires;
 
     /** @ODM\String */
-    private $clientId;
+    protected $clientId;
 
     /** @ODM\String */
-    private $profileId;
+    protected $profileId;
 
     /**
      * @ODM\ReferenceOne(targetDocument="\Blimp\Security\Documents\Client")
      */
-    private $client;
+    protected $client;
 
     /**
      * @ODM\ReferenceOne
      */
-    private $profile;
+    protected $profile;
 
     public function setType($type) {
         $this->type = $type;

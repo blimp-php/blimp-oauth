@@ -10,10 +10,10 @@ class Code extends BlimpDocument {
     protected $id;
 
     /** @ODM\String */
-    private $scope;
+    protected $scope;
 
     /** @ODM\String */
-    private $redirectUri;
+    protected $redirectUri;
 
     /**
      * @ODM\Date
@@ -21,10 +21,10 @@ class Code extends BlimpDocument {
     protected $expires;
 
     /** @ODM\String */
-    private $clientId;
+    protected $clientId;
 
     /** @ODM\String */
-    private $profileId;
+    protected $profileId;
 
     /** @ODM\Boolean */
     public $used;
@@ -32,12 +32,12 @@ class Code extends BlimpDocument {
     /**
      * @ODM\ReferenceOne(targetDocument="\Blimp\Security\Documents\Client")
      */
-    private $client;
+    protected $client;
 
     /**
      * @ODM\ReferenceOne
      */
-    private $profile;
+    protected $profile;
 
     public function setScope($scope) {
         $this->scope = $scope;

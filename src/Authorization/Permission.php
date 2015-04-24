@@ -4,8 +4,8 @@ namespace Blimp\Security\Authorization;
 use Symfony\Component\Security\Core\Role\RoleInterface;
 
 class Permission implements RoleInterface {
-    private $domain;
-    private $permissions;
+    protected $domain;
+    protected $permissions;
 
     public function __construct($domain, $permissions = []) {
         $this->domain = $domain;

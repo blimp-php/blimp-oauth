@@ -166,7 +166,7 @@ class VerifyCredentials {
 
                         $profile = $access_token->getProfile();
                         if(!empty($profile)) {
-                            $data['profile'] = $api['dataaccess.mongoodm.utils']->toStdClass($profile);
+                            $data['profile'] = $api['dataaccess.mongoodm.utils']->toStdClass($profile, 0, true, true);
                         }
                     }
 
