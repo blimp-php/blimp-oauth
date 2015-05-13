@@ -1,6 +1,6 @@
 {
     "name": "blimp/blimp-oauth",
-    "version": "0.1.5",
+    "version": "0.1.6",
     "type": "library",
     "description": "Blimp framework",
     "license": "LGPL-3.0+",
