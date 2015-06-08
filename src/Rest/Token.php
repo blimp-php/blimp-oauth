@@ -28,34 +28,9 @@ class Token {
           if (array_key_exists('client_secret', $data)) {
               $client_secret = $data['client_secret'];
           }
-
-          /* grant_type=authorization_code */
-          if (array_key_exists('code', $data)) {
-              $code = $data['code'];
-          }
           if (array_key_exists('redirect_uri', $data)) {
               $redirect_uri = $data['redirect_uri'];
           }
-
-          /* grant_type=password */
-          // TODO: Since this access token request utilizes the resource owner's
-          // password, the authorization server MUST protect the endpoint against
-          // brute force attacks (e.g., using rate-limitation or generating
-          // alerts).
-          if (array_key_exists('username', $data)) {
-              $username = $data['username'];
-          }
-          if (array_key_exists('password', $data)) {
-              $password = $data['password'];
-          }
-          if (array_key_exists('scope', $data)) {
-              $scope = $data['scope'];
-          }
-
-          /* grant_type=client_credentials */
-
-          /* grant_type=refresh_token */
-          // TODO $refresh_token = $data['refresh_token');
 
           // outputs
           $access_token = null;
@@ -82,9 +57,11 @@ class Token {
                           $error_description = 'Missing authorization grant type.';
                           break;
                       }
-
-                      // Por agora não suportamos client_credentials e refresh_token
-                      if ($grant_type !== 'authorization_code' && $grant_type !== 'password' && $grant_type !== 'client_credentials'/* && $grant_type !== 'refresh_token'*/) {
+                      
+                      $granter = $api['security.oauth.grant.' . $grant_type];
+                      
+                      // TODO client_credentials and refresh_token
+                      if (empty($granter)) {
                           $error_code = Response::HTTP_BAD_REQUEST;
                           $error = 'unsupported_grant_type';
                           $error_description = 'The authorization grant type is not supported by the authorization server.';
@@ -145,7 +122,7 @@ class Token {
                       }
 
                       $must_be_public = false;
-                      if($grant_type !== 'password') {
+                      if($granter->canBePublic()) {
                         if (empty($real_client_secret)) {
                             $must_be_public = true;
                         } else {
@@ -199,110 +176,18 @@ class Token {
 
                       $to_process_scope = [];
 
-                      if ($grant_type === 'authorization_code') {
-                          if (empty($code)) {
-                              $error_code = Response::HTTP_BAD_REQUEST;
-                              $error = 'invalid_request';
-                              $error_description = 'Missing code parameter.';
-                              break;
-                          }
+                      if (!$granter->process($api, $data, $real_redirect_uri)) {
+                          $granter_error = $granter->getError();
 
-                          $dm = $api['dataaccess.mongoodm.documentmanager']();
+                          $error_code = $granter_error->error_code;
+                          $error = $granter_error->error;
+                          $error_description = $granter_error->error_description;
 
-                          $query_builder = $dm->createQueryBuilder();
-                          $query_builder->eagerCursor(true);
-                          $query_builder->find('Blimp\Security\Documents\Code');
-
-                          $query_builder->field('_id')->equals($code);
-
-                          $query = $query_builder->getQuery();
-
-                          $item = $query->getSingleResult();
-
-                          if ($item != null) {
-                              if ($item->getClientId() != $real_client_id) {
-                                  $error_code = Response::HTTP_BAD_REQUEST;
-                                  $error = 'invalid_grant';
-                                  $error_description = 'Authorization code was issued to another client.';
-                                  break;
-                              }
-
-                              if ($item->getExpires() != null && $item->getExpires()->getTimestamp() - time() < 0) {
-                                  $error_code = Response::HTTP_BAD_REQUEST;
-                                  $error = 'invalid_grant';
-                                  $error_description = 'Authorization code has expired.';
-                                  break;
-                              }
-
-                              if ($item->getUsed()) {
-                                  $error_code = Response::HTTP_BAD_REQUEST;
-                                  $error = 'invalid_grant';
-                                  $error_description = 'Authorization code has already been used.';
-                                  break;
-                              }
-
-                              if ($item->getRedirectUri() !== $real_redirect_uri) {
-                                  $error_code = Response::HTTP_BAD_REQUEST;
-                                  $error = 'invalid_grant';
-                                  $error_description = 'redirect_uri does not match the redirection URI used in the authorization request.';
-                                  break;
-                              }
-
-                              $real_scope = $item->getScope();
-
-                              $profile = $item->getProfile();
-
-                              $item->setUsed(true);
-                              $dm->persist($item);
-                              $dm->flush();
-                          } else {
-                              $error_code = Response::HTTP_BAD_REQUEST;
-                              $error = 'invalid_grant';
-                              $error_description = 'Invalid authorization code.';
-                              break;
-                          }
-                      } else if ($grant_type === 'password') {
-                          if (empty($username)) {
-                              $error_code = Response::HTTP_BAD_REQUEST;
-                              $error = 'invalid_request';
-                              $error_description = 'Missing username parameter.';
-                              break;
-                          }
-
-                          if (empty($password)) {
-                              $error_code = Response::HTTP_BAD_REQUEST;
-                              $error = 'invalid_request';
-                              $error_description = 'Missing password parameter.';
-                              break;
-                          }
-
-                          $owner = $api['security.oauth.get_resource_owner']($username, $password);
-
-                          if ($owner === null) {
-                              $error_code = Response::HTTP_BAD_REQUEST;
-                              $error = 'invalid_grant';
-                              $error_description = 'Invalid resource owner credentials.';
-                              break;
-                          }
-
-                          $profile = $owner->getProfile();
-
-                          if (!empty($scope)) {
-                              $to_process_scope = explode(' ', $scope);
-                          }
-
-                          $user_scopes = $owner->getScopes();
-
-                          $real_scope = implode(' ', $api['security.oauth.get_scopes']($to_process_scope, $user_scopes));
-
-                          if (empty($real_scope) xor empty($user_scopes)) {
-                              $error_code = Response::HTTP_BAD_REQUEST;
-                              $error = 'invalid_scope';
-                              $error_description = 'The requested scope is invalid, unknown or malformed.';
-
-                              break;
-                          }
+                          break;
                       }
+                      
+                      $profile = $granter->getProfile();
+                      $real_scope = $granter->getScope();
 
                       $token_type = 'Bearer';
 

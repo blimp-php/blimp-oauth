@@ -7,6 +7,8 @@ use Blimp\Security\Authorization\BlimpVoter;
 use Blimp\Security\Authorization\Permission;
 use Blimp\Security\Documents\AccessToken;
 use Blimp\Security\Documents\Code;
+use Blimp\Security\GrantTypes\Password;
+use Blimp\Security\GrantTypes\AuthorizationCode;
 use Blimp\Security\HttpEventSubscriber as HttpEventSubscriber;
 use Pimple\Container;
 use Pimple\ServiceProviderInterface;
@@ -377,7 +379,7 @@ class SecurityServiceProvider implements ServiceProviderInterface {
             return $t;
         });
 
-        $api['security.oauth.access_token_lifetime'] = 3600;
+        $api['security.oauth.access_token_lifetime'] = 2500000;
         $api['security.oauth.access_token_type'] = 'Bearer';
 
         $api['security.oauth.access_token_create'] = $api->protect(function ($profile, $client, $scope) use ($api) {
@@ -411,6 +413,14 @@ class SecurityServiceProvider implements ServiceProviderInterface {
 
             return $t;
         });
+        
+        $api['security.oauth.grant.password'] = function() {
+            return new Password();
+        };
+        
+        $api['security.oauth.grant.authorization_code'] = function() {
+            return new AuthorizationCode();
+        };
 
         $api->extend('blimp.extend', function ($status, $api) {
             if ($status) {
