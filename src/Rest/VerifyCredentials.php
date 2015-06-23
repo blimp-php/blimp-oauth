@@ -144,14 +144,24 @@ class VerifyCredentials {
                     if(!empty($scope)) {
                         $data['scope'] = $scope;
                     }
+                    
+                    $df = !empty($api['dataaccess.mongoodm.date_format']);
 
                     $expires = $access_token->getExpires();
                     if(!empty($expires)) {
                         $data['expires_at'] = $expires;
+
+                        if($df) {
+                            $data['expires_at'] = $data['expires_at']->format($api['dataaccess.mongoodm.date_format']);
+                        }
                     }
 
                     $data['issued_at'] = $access_token->getCreated();
 
+                    if($df) {
+                        $data['issued_at'] = $data['issued_at']->format($api['dataaccess.mongoodm.date_format']);
+                    }
+                    
                     $data['client_id'] = $access_token->getClientId();
 
                     $profile_id = $access_token->getProfileId();
@@ -160,10 +170,6 @@ class VerifyCredentials {
                     }
 
                     if (!empty($include_entities) && boolval($include_entities) && $include_entities != 'false') {
-                        $data['client'] = $api['dataaccess.mongoodm.utils']->toStdClass($client);
-                        unset($data['client']->secret);
-                        unset($data['client']->redirectUri);
-
                         $profile = $access_token->getProfile();
                         if(!empty($profile)) {
                             $data['profile'] = $api['dataaccess.mongoodm.utils']->toStdClass($profile, 0, true, true);
