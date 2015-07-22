@@ -50,7 +50,7 @@ class SecurityServiceProvider implements ServiceProviderInterface {
         };
 
         $api['security.permitions.check'] = $api->protect(function ($domain, $permission) use ($api) {
-            if (empty($domain) || true) {
+            if (empty($domain)) {
                 return true;
             }
 
@@ -525,8 +525,10 @@ class SecurityServiceProvider implements ServiceProviderInterface {
 
                 $api->extend('blimp.init', function ($status, $api) {
                     if ($status) {
-                        $api['http.dispatcher']->addSubscriber($api['security.firewall']);
-                        $api['http.dispatcher']->addSubscriber($api['security.http.listener']);
+                        if($api->offsetExists('http.dispatcher')) {
+                            $api['http.dispatcher']->addSubscriber($api['security.firewall']);
+                            $api['http.dispatcher']->addSubscriber($api['security.http.listener']);
+                        }
                     }
 
                     return $status;

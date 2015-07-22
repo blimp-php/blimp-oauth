@@ -176,7 +176,7 @@ class Token {
 
                       $to_process_scope = [];
 
-                      if (!$granter->process($api, $data, $real_redirect_uri)) {
+                      if (!$granter->process($api, $data, $real_redirect_uri, $real_client_id)) {
                           $granter_error = $granter->getError();
 
                           $error_code = $granter_error->error_code;

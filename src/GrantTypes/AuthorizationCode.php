@@ -8,7 +8,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 class AuthorizationCode {
-    public function process(Container $api, $data, $redirect_uri = null) {
+    public function process(Container $api, $data, $redirect_uri = null, $client_id = null) {
         if (array_key_exists('code', $data)) {
             $code = $data['code'];
         }
@@ -33,7 +33,7 @@ class AuthorizationCode {
         $item = $query->getSingleResult();
 
         if ($item != null) {
-            if ($item->getClientId() != $real_client_id) {
+            if ($item->getClientId() != $client_id) {
                 $this->error_code = Response::HTTP_BAD_REQUEST;
                 $this->error = 'invalid_grant';
                 $this->error_description = 'Authorization code was issued to another client.';
