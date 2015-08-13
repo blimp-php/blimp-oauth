@@ -13,7 +13,7 @@
     ],
     "require": {
         "php": ">=5.4.0",
-        "symfony/security": "2.5.*",
+        "symfony/security": "~2.5,<3.0",
         "blimp/blimp-http": "1.0.*",
         "blimp/blimp-data-access-mongo": "1.0.*"
     },

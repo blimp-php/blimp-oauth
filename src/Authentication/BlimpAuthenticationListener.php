@@ -45,6 +45,7 @@ class BlimpAuthenticationListener implements ListenerInterface {
             $access_token = $matches[1];
         } else if ($request->query->has('access_token')) {
             $access_token = $request->query->get('access_token');
+            $request->query->remove('access_token');
         } else {
             return;
         }
