@@ -12,7 +12,6 @@ use Blimp\Security\GrantTypes\AuthorizationCode;
 use Blimp\Security\HttpEventSubscriber as HttpEventSubscriber;
 use Pimple\Container;
 use Pimple\ServiceProviderInterface;
-use Symfony\Component\Config\ConfigCache;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\HttpFoundation\RequestMatcher;
 use Symfony\Component\Security\Core\Authentication\AuthenticationProviderManager;
@@ -38,8 +37,6 @@ class SecurityServiceProvider implements ServiceProviderInterface {
         $api['security.permission.denied'] = $api->protect(function ($scope) {
             throw new AccessDeniedException($scope);
         });
-
-        $api['security.cache'] = __DIR__;
 
         $api['security.permission.factory'] = $api->protect(function ($domain, $permissions = []) {
             return new Permission($domain, $permissions);
@@ -70,36 +67,21 @@ class SecurityServiceProvider implements ServiceProviderInterface {
         });
 
         $api['security.roles'] = function ($api) {
-            $cachePath = $api['security.cache'] . '/scopes.php';
+            $dm = $api['dataaccess.mongoodm.documentmanager']();
 
-            $cache = new ConfigCache($cachePath, true);
+            $query_builder = $dm->createQueryBuilder();
+            $query_builder->eagerCursor(true);
+            $query_builder->find('Blimp\Security\Documents\Scope');
+
+            $query = $query_builder->getQuery();
+            $cursor = $query->execute();
 
             $scopes = [];
-
-            $fresh = $cache->isFresh();
-
-            if (!$fresh) {
-                $dm = $api['dataaccess.mongoodm.documentmanager']();
-
-                $query_builder = $dm->createQueryBuilder();
-                $query_builder->eagerCursor(true);
-                $query_builder->find('Blimp\Security\Documents\Scope');
-
-                $query = $query_builder->getQuery();
-                $cursor = $query->execute();
-
-                foreach ($cursor as $scope) {
-                    $scopes[$scope->getId()] = $scope;
-                }
-
-                $scopes = array_merge($scopes, $api['security.permissions']);
-
-                $code = "<?php return " . var_export($scopes, true) . ";";
-
-                $cache->write($code, null);
-            } else {
-                $scopes = include $cachePath;
+            foreach ($cursor as $scope) {
+                $scopes[$scope->getId()] = $scope;
             }
+
+            $scopes = array_merge($scopes, $api['security.permissions']);
 
             return $scopes;
         };
